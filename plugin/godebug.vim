@@ -12,66 +12,84 @@ if exists("g:godebug_loaded_install")
 endif
 let g:godebug_loaded_install = 1
 
-" Set a global list of breakpoints, if not already exist
-if !exists("g:godebug_breakpoints")
-  let g:godebug_breakpoints = []
+if !executable("dlv")
+  echom "vim-godebug: can't find dlv"
+  finish
+endif
+let s:dlv = exepath("dlv")
+
+if !exists("g:godebug_breakpoint_sign")
+    let g:godebug_breakpoint_sign = ">>"
 endif
 
-" make cache base path overridable
-if !exists("g:godebug_cache_path")
-  " this will probably suck for people using windows ...
-  let g:godebug_cache_path = $HOME . "/.cache/" . v:progname . "/vim-godebug"
+if !exists("g:godebug_breakpoint_sign_highlight")
+    let g:godebug_breakpoint_sign_highlight = "SignColumn"
 endif
 
-" make sure cache base path exists
-call mkdir(g:godebug_cache_path, "p")
+exe "sign define gobreakpoint text=". g:godebug_breakpoint_sign ." texthl=".
+	\ g:godebug_breakpoint_sign_highlight
 
-" create a reasonably unique breakpoints file path per vim instance
-let g:godebug_breakpoints_file = g:godebug_cache_path . "/". getpid() . localtime()
+let s:seq = 0
+let s:breakpoints = {}
+let s:jobid = -1
 
-autocmd VimLeave * call godebug#deleteBreakpointsFile()<cr>
-
-" Private functions {{{1
-function! godebug#toggleBreakpoint(file, line, ...) abort
-  " Compose the breakpoint for delve:
-  " Example: break /home/user/path/to/go/file.go:23
-  let breakpoint = "break " . a:file. ':' . a:line
-
-  " Define the sign for the gutter
-  exe "sign define gobreakpoint text=◉ texthl=Search"
-
-  " If the line isn't already in the list, add it.
-  " Otherwise remove it from the list.
-  let i = index(g:godebug_breakpoints, breakpoint)
-  if i == -1
-    call add(g:godebug_breakpoints, breakpoint)
-    exe "sign place ". a:line ." line=" . a:line . " name=gobreakpoint file=" . a:file
+function! g:GodebugToggleBreakpoint() abort
+  let fn = expand('%:p')
+  let line = line('.')
+  let k = fn .':'. line
+  if has_key(s:breakpoints, k)
+    call jobsend(s:jobid, ['clear '. s:breakpoints[k], ""])
+    unlet s:breakpoints[k]
+    exe "sign unplace ". line ." file=". fn
   else
-    call remove(g:godebug_breakpoints, i)
-    exe "sign unplace ". a:line ." file=" . a:file
+    let s:seq += 1
+    let s:breakpoints[k] = 'godebug' . s:seq
+    call jobsend(s:jobid, ['break '. s:breakpoints[k] .' '. k, ""])
+    exe "sign place ". line ." line=". line ." name=gobreakpoint file=". fn
   endif
 endfunction
 
-function! godebug#writeBreakpointsFile(...) abort
-  call writefile(g:godebug_breakpoints + ["continue"], g:godebug_breakpoints_file)
-endfunction
+nnoremap <silent> <Plug>(godebug-toggle-breakpoint)
+	\ :<C-U>call g:GodebugToggleBreakpoint()<CR>
 
-function! godebug#deleteBreakpointsFile(...) abort
-  if filereadable(g:godebug_breakpoints_file)
-    call delete(g:godebug_breakpoints_file)
+function! g:GodebugClearBreakpoints() abort
+  if len(s:breakpoints) > 0
+    for [key, value] in items(s:breakpoints)
+      let [fn, line] = split(key, ':')
+      exe "sign unplace ". line ." file=". fn
+      unlet s:breakpoints[key]
+    endfor
+    call jobsend(s:jobid, ['clearall', ""])
   endif
 endfunction
 
-function! godebug#debug(bang, ...) abort
-  call godebug#writeBreakpointsFile()
-  return go#term#new(a:bang, ["dlv", "debug", "--init=" . g:godebug_breakpoints_file])
+nnoremap <silent> <Plug>(godebug-clear-breakpoints)
+	\ :<C-U>call g:GodebugClearBreakpoints()<CR>
+
+function! s:godebug(bang, ...) abort
+  if a:0 > 0
+    if a:1 == "sudo"
+      if a:0 > 1
+	let cmd = [ "sudo", s:dlv ] + a:000[1:-1]
+      else
+	let cmd = [ "sudo", s:dlv, "debug" ]
+      endif
+    else
+      let cmd = [ "dlv" ] + a:000
+    endif
+  else
+    let cmd = [ "dlv", "debug" ]
+  endif
+  let s:jobid = go#term#new(a:bang, cmd)
+  return s:jobid
 endfunction
 
-function! godebug#debugtest(bang, ...) abort
-  call godebug#writeBreakpointsFile()
-  return go#term#new(a:bang, ["dlv", "test", "--init=" . g:godebug_breakpoints_file])
+function! s:complete(ArgLead, CmdLine, CursorPos) abort
+  return filter([ "sudo",
+	\ "attach", "connect", "core", "debug", "exec", "test", "trace" ],
+	\ 'v:val =~ a:ArgLead')
+	\ + split(glob(a:ArgLead . "*"))
 endfunction
 
-command! -nargs=* -bang GoToggleBreakpoint call godebug#toggleBreakpoint(expand('%:p'), line('.'), <f-args>)
-command! -nargs=* -bang GoDebug call godebug#debug(<bang>0, 0, <f-args>)
-command! -nargs=* -bang GoDebugTest call godebug#debugtest(<bang>0, 0, <f-args>)
+command! -nargs=* -bang -complete=customlist,s:complete GoDebug
+	\ call s:godebug(<bang>0, <f-args>)

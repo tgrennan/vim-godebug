@@ -20,8 +20,33 @@ Copy all files to your ~/.vim directory or use Tim Pope's excellent pathogen plu
 
 ## Usage
 
-`:call GoToggleBreakpoint()` to add or remove a breakpoint at the current line
-`:call GoDebug()` to start a debug session for the main package
+```nvim
+:GoDebug [[sudo ]COMMAND [ARGS]...]
+```
+
+e.g.
+
+```nvim
+:GoDebug
+:GoDebug test -v
+:GoDebug debug PACKAGE
+:GoDebug sudo exec PROGRAM
+:GoDebug sudo attach PID
+```
+
+The default `COMMAND` is `debug` which builds and runs the main package in the
+current directory.
+
+## Mappings
+
+```nvim
+:autocmd FileType go nmap <leader>b <Plug>(godebug-toggle-breakpoint)
+:autocmd FileType goterm nmap <leader>c <Plug>(godebug-clear-breakpoints)
+```
+
+With these mappings in `~/.config/nvim/init.vim`, start GoDebug then use
+`<leader>b` in source buffers to toggle breakpoints at the current line
+or `<leader>c` in the debugger buffer to clear all breakpoints.
 
 ## Development and Improvements
 

@@ -1,0 +1,65 @@
+*godebug.txt*	Nvim
+
+INTRODUCTION                                    *godebug*
+
+Debug Go programs within nvim.
+
+PREREQUISITES                                   *godebug-prerequisites*
+
+ |Go|
+ |Neovim|
+ |vim-go|
+ |Delve|
+
+Note: Due to problems with certificates on macOS, install |Delve| with |brew|.
+
+USAGE                                           *godebug-usage*
+>
+ :GoDebug [[sudo ]COMMAND [ARGS]...]
+<
+e.g.
+>
+ :GoDebug
+ :GoDebug test -v
+ :GoDebug debug PACKAGE
+ :GoDebug sudo exec PROGRAM
+ :GoDebug sudo attach PID
+<
+The default `COMMAND` is `debug` which builds and runs the main package in the
+current directory.
+
+MAPPINGS                                        *godebug-mappings*
+>
+ :autocmd FileType go nmap <leader>b <Plug>(godebug-toggle-breakpoint)
+ :autocmd FileType goterm nmap <leader>c <Plug>(godebug-clear-breakpoints)
+<
+With these mappings in `~/.config/nvim/init.vim`, start GoDebug then use
+`<leader>b` in source buffers to toggle breakpoints at the current line
+or `<leader>c` in the debugger buffer to clear all breakpoints.
+
+CONFIGURATION                                   *godebug-configuration*
+
+ `g:godebug_breakpoint_sign` -
+        indicator (default, ">>")
+ `g:godebug_breakpoint_sign_highlight` -
+	indicator style (default, "SignColumn")
+
+ABOUT                                           *godebug-about*
+
+Luca Guidi provides the original |godebug| at:
+ http://github.com/jodosha/vim-fugitive
+
+Tom Grennan maintains this fork at:
+ http://github.com/tgrennan/vim-godebug
+
+Copyright © 2017 Luca Guidi - https://lucaguidi.com
+
+REFERENCES                                      *godebug-references*
+
+ *Go* - https://golang.org
+ *Neovim* - https://neovim.io/
+ *vim-go* - https://github.com/fatih/vim-go
+ *Delve* - https://github.com/derekparker/delve
+ *brew* - https://github.com/derekparker/delve/blob/master/Documentation/installation/osx/install.md#via-homebrew
+
+ vim:tw=78:et:ft=help:norl:
